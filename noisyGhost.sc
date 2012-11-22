@@ -11,8 +11,6 @@
 
 s.waitForBoot({
 
-s.meter;
-
 b = Buffer.alloc(s, 512); //buffer for FFT
 
 SynthDef(\pitchandonsets, //this SynthDef makes no sound, just analyzes input
@@ -44,19 +42,68 @@ SynthDef(\pitchandonsets, //this SynthDef makes no sound, just analyzes input
 //------------------------------------------------------
 // For debugging
 //------------------------------------------------------
-( //test out the OSC message
-a = OSCdef(\newNoteMsg,
+(
+//test out receiving the OSC note messages 
+n = NetAddr("127.0.0.1", 57120); // local machine
+OSCdef.newMatching(\incoming, {|msg, time, addr, recvPort| \matching.postln}, '/swarmNote', n); // path matching
+c = OSCdef(\incomingNotePrint,
+      {|msg, time, addr, recvPort|
+      time.postln;   // time
+      msg[0].postln; // /swarmNote
+      msg[1].postln; // freq (Hz)
+      msg[2].postln; // amp (between 0 and 1)
+      msg[3].postln; // dur (ms)
+    //msg[4].postln; // not used yet
+    //msg[5].postln; // not used yet
+      },
+      '/swarmNote',nil);
+)
+c.free
+(
+//test out note tracking      
+b = OSCdef(\newNoteMsg,
       {|msg, time, addr, recvPort|
       time.postln;   // time
       msg[0].postln; // /newNote
       msg[1].postln; // 1000
       msg[2].postln; // -1
-      msg[3].postln; // amp
-      msg[4].postln; // midi note
-      msg[5].postln; // has freq
+      msg[3].postln; // 
+      msg[4].postln; // 
+      msg[5].postln; // 
       },
-      '/newNote', s.addr);
+      '/newNote');
 )
+b.free
+
+OSCFunc.trace(true); // Turn posting on
+OSCFunc.trace(false); // Turn posting off
+SwingOSC.quitAll
+//------------------------------------------------------
+(
+z = Synth(\default,[freq: 440, amp: 0]);
+//Receiving output notes from swarm via OSC 
+n = NetAddr("127.0.0.1", 57120); // local machine
+OSCdef.newMatching(\incoming, {|msg, time, addr, recvPort| \matching.postln}, '/swarmNote', n); // path matching
+a = OSCdef(\incomingNotePrint,
+      {|msg, time, addr, recvPort|
+      time.postln;   // time
+      msg[0].postln; // /swarmNote
+      msg[1].postln; // freq (Hz)
+      msg[2].postln; // amp (between 0 and 1)
+      msg[3].postln; // dur (ms)
+    //msg[4].postln; // not used yet
+    //msg[5].postln; // not used yet
+      z.set(
+        \freq, msg[1],
+        \amp, msg[2],
+        \dur, msg[3]/1000,
+        \pan, [-1,-0.5,0,0.5,1].choose //random panning
+      );
+      },
+      '/swarmNote',nil);
+)
+a.free
+
 
 
 //------------------------------------------------------
@@ -105,9 +152,24 @@ a = OSCdef(\newNoteMsg,
 x = Synth(\pitchandonsets); 
 )
 
+s.meter;
+
+//------------------------------------------------------
+// Send tracked notes to python script to modify attractors
+//------------------------------------------------------
 
 
-(  // play back the buffer of notes
+// note yet sending tracked notes, but can change the freq/amp position
+// of a random attractor
+m = NetAddr("127.0.0.1", 9000); // python
+m.sendMsg("/attr",100,100); //attractor position
+
+
+//------------------------------------------------------
+// Play tracked notes as patterns
+//------------------------------------------------------
+
+(
 q = Pbind(
   \instrument, \default,
   \freq, Pseq(~notelist[\freq].reverse),
@@ -118,7 +180,7 @@ q = Pbind(
 q.play;
 )
 
-(  // play back scrambled notes
+(  // scrambled notes
 q = Pbind(
   \instrument, \default,
   \freq, Pseq(~notelist[\freq].scramble),
@@ -180,18 +242,6 @@ q = Pbind(
   \freq, Pseq(~notelist[\freq].reverse),
   \dur, Pseq(~notelist[\dur].reverse),
   \amp, Pseq(~notelist[\amp].reverse),
-  \pan, Prand([-1,-0.5,0,0.5,1],10) //random panning
-);
-q.play;
-)
-
-(  // play back scrambled notes
-q = Pbind(
-  \instrument, \envio,
-  \freq, Pseq(~notelist[\freq].scramble),
-  \dur, Pseq(~notelist[\dur].scramble),
-  \amp, Pseq(~notelist[\amp].scramble),
-  \pan, Prand([-1,-0.5,0,0.5,1],10) //random panning
 );
 q.play;
 )
