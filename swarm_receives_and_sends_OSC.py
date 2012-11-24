@@ -3,8 +3,7 @@
 # Which was in turn motivated by the following pseudocode:
 # http://www.vergenet.net/~conrad/boids/pseudocode.html
 
-# This code is a swarm (no velocity matching) with randomly initialized
-# attractors.
+# This code is a swarm (no velocity matching) with random attractors.
 
 # NOTE: Use OSC to set a random attactor position
 # In Supercollider, execute this code, for example:
@@ -17,21 +16,22 @@ import socket, OSC      # OSC COMMUNICATION
 import time, threading
 import math
 
-DIMLIMIT = 600          # LIMIT OF DIMENSION VALUES
+DIMLIMIT = 700          # LIMIT OF DIMENSION VALUES
 WIDTH = DIMLIMIT        # OF SCREEN IN PIXELS
 HEIGHT = DIMLIMIT       # OF SCREEN IN PIXELS
 BOIDS = 1 + 6 + 12      # IN SIMULATION
-BOIDMASS = 1            # IN SIMULATION
+BOIDMASS = 2            # IN SIMULATION
 BLIMIT = 30             # LIMIT FOR BOID PERCEPTION
-ATTRACTORS = 4          # IN SIMULATION
-ATTRACTION = 5          # ATTRACTOR INFLUENCE
+ATTRACTORS = 9          # IN SIMULATION
+ATTRACTION = 3          # ATTRACTOR INFLUENCE
 WALL = 100              # FROM SIDE IN PIXELS
 WALL_FORCE = 30         # ACCELERATION PER MOVE
-SPEED_LIMIT = 1000       # FOR BOID VELOCITY
+SPEED_LIMIT = 1000      # FOR BOID VELOCITY
 BOID_RADIUS = 3         # FOR BOIDS IN PIXELS
-ATTRACTOR_RADIUS = 3         # FOR BOIDS IN PIXELS
+ATTRACTOR_RADIUS = 5    # FOR BOIDS IN PIXELS
 OFFSET_START = 20       # FROM WALL IN PIXELS
 FRAMES_PER_SEC = 40     # SCREEN UPDATE RATE
+UPDATE_TIME = 500 / FRAMES_PER_SEC
 WINDOWED = True         # MOVABLE PROGRAM
 NDIMS = 5               # MULTIDIMENSIONAL SWARM SPACE
 
@@ -40,85 +40,17 @@ RECEIVE_ADDRESS = ('127.0.0.1', 9000) # tupple with ip, port.
 SEND_ADDRESS = ('127.0.0.1', 57120) # SuperCollider on local machine.
 
 # FOR CREATING/SENDING NOTE EVENTS
-MAXFREQ = 1000
-MINFREQ = 100
+MAXFREQ = 90 #MIDI FREQ
+MINFREQ = 20
 MAXAMP = 0.9
-MAXDUR = 2000
+MAXDUR = 100
 MINDUR = 10
-MAXIOI = 1000
+MAXIOI = 100
 MINIOI = 10
-FREQSCALER = (MAXFREQ - MINFREQ) / DIMLIMIT 
-AMPSCALER = MAXAMP / DIMLIMIT
-DURSCALER = (MAXDUR - MINDUR) / DIMLIMIT
-IOISCALER = (MAXIOI - MINIOI) / DIMLIMIT
-
-################################################################################
-# RECEIVING OSC
-
-# OSC Server. there are three different types of server.
-s = OSC.OSCServer(RECEIVE_ADDRESS) # basic
-##s = OSC.ThreadingOSCServer(receive_address) # threading
-##s = OSC.ForkingOSCServer(receive_address) # forking
-
-# this registers a 'default' handler (for unmatched messages),
-# an /'error' handler, an '/info' handler.
-# And, if the client supports it, a '/subscribe' & '/unsubscribe' handler
-s.addDefaultHandlers()
-
-# define a message-handler function for the server to call.
-def attractor_handler(addr, tags, stuff, source):
-    print "---"
-    print "received new osc msg from %s" % OSC.getUrlStr(source)
-    print "with addr : %s" % addr
-    print "typetags %s" % tags
-    attractor = random.choice(attractors) #modify a random attractor
-    for item in stuff:
-      print "data %d" % item
-    (attractor.position.x[0], attractor.position.x[1]) = stuff
-    print "---"
-
-s.addMsgHandler("/attr", attractor_handler) # adding our function
-
-# FOR DEBUGGING TODO: remove
-def note_handler(addr, tags, stuff, source):
-    print "---"
-    print "received new osc msg from %s" % OSC.getUrlStr(source)
-    print "with addr : %s" % addr
-    print "typetags %s" % tags
-    for item in stuff:
-        print "data %f" % item
-    print "---"
-s.addMsgHandler("/swarmNote", note_handler) # adding our function
-
-
-def startOSC():
-  # Start OSCServer
-  print "\nStarting OSCServer.\n"
-  global st
-  st = threading.Thread( target = s.serve_forever )
-  st.start()
-
-def quit_handler():
-  # close OSC server
-  print "Closing OSCServer."
-  s.close()
-  print "Waiting for Server-thread to finish."
-  st.join() ##!!!
-  print "Done."
-  graph.quit()
-
-################################################################################
-# SENDING OSC
-
-client = OSC.OSCClient()
-client.connect( SEND_ADDRESS ) # note that the argument is a tupple and not two arguments
-#client.connect( RECEIVE_ADDRESS ) # debugging
-
-def sendMsg(addr,val):
-    msg = OSC.OSCMessage() #  we reuse the same variable msg used above overwriting it
-    msg.setAddress(addr)   # something like "/note"
-    msg.append(val)        # the corresponding value
-    client.send(msg)       # now we dont need to tell the client the address anymore
+FREQSCALER = float(MAXFREQ - MINFREQ) / float(DIMLIMIT)
+AMPSCALER = float(MAXAMP) / float(DIMLIMIT)
+DURSCALER = float(MAXDUR - MINDUR) / float(DIMLIMIT)
+IOISCALER = float(MAXIOI - MINIOI) / float(DIMLIMIT)
 
 ################################################################################
 
@@ -151,21 +83,22 @@ def build_graph():
     y = (root.winfo_screenheight() - HEIGHT) / 2
     root.geometry('%dx%d+%d+%d' % (WIDTH, HEIGHT, x, y))
     root.protocol("WM_DELETE_WINDOW", quit_handler)
-    #root.bind_all('<Escape>', lambda event: event.widget.quit())
     graph = Canvas(root, width=WIDTH, height=HEIGHT, background='black')
     graph.after(1000 / FRAMES_PER_SEC, update)
     graph.pack()
 
 def update():
     # Main simulation loop.
-    #graph.after(1000 / FRAMES_PER_SEC, update)
-    graph.after(500 / FRAMES_PER_SEC, update)
+    graph.after(UPDATE_TIME, update)
     draw()
     move()
-    makesound() #TODO
+    makesound()
     global sim_time #necessary to prevent UnboundLocalError
     sim_time += 1 # iterate discreet time variable
-    if not (sim_time % 50): print "%d\n" % (sim_time) #it works
+    if not (sim_time % 50): print "%d\n" % (sim_time) #keep track of time
+    #if not (sim_time % 500): #randomly move attractors every once in a while
+    #    for attractor in attractors:
+    #        attractor.rand_update()
 
 def draw():
     # Draw boids and attractors.
@@ -192,7 +125,7 @@ def move():
         boid.update_velocity(boids)
         boid.move()
 
-#TODO
+#TODO - in progress
 def makesound():
     global note_time
     global sim_time
@@ -210,18 +143,17 @@ def makesound():
             amp  += boid.position.x[1]
             dur  += boid.position.x[2]
 #            print "ioi component: %d\n" % boid.position.x[3]
-            ioi += boid.position.x[3]
+            ioi  += boid.position.x[3]
         freq = (freq / len(boids)) * FREQSCALER + MINFREQ
         amp = (amp / len(boids)) * AMPSCALER              #0 IS MIN AMP
         dur = (dur / len(boids)) * DURSCALER + MINDUR
-#        print "Unscaled ioi: %d\n" % (ioi)
-        ioi /= len(boids) * IOISCALER + MINIOI
+        ioi = (ioi / len(boids)) * IOISCALER + MINIOI
         # send them via osc as a note event
         sendMsg('/swarmNote',[freq,amp,dur]) # send OSC to SuperCollider
         # assign next note time
         note_time = sim_time + ioi
-        print "Current time: %d\n" % (sim_time)
-        print "IOI: %d\n" % (ioi)
+        print "\nCurrent time: %d" % (sim_time)
+        print "Freq=%f, amp=%f, dur=%f, IOI=%f" % (freq, amp, dur, ioi)
         print "Next note time: %d\n" % (note_time)
     
 
@@ -249,52 +181,8 @@ def build_attractors():
     global attractors
     attractors = tuple(Attractor(ATTRACTION) for attractor in xrange(ATTRACTORS))
 
-################################################################################
-
-# TWO DIMENTIONAL VECTOR CLASS - superceded by MultiD below
-
-class TwoD:
-
-    def __init__(self, x, y):
-        self.x = float(x)
-        self.y = float(y)
-
-    def __repr__(self):
-        return 'TwoD(%s, %s)' % (self.x, self.y)
-
-    def __add__(self, other):
-        return TwoD(self.x + other.x, self.y + other.y)
-
-    def __sub__(self, other):
-        return TwoD(self.x - other.x, self.y - other.y)
-
-    def __mul__(self, other):
-        return TwoD(self.x * other, self.y * other)
-
-    def __div__(self, other):
-        return TwoD(self.x / other, self.y / other)
-
-    def __iadd__(self, other):
-        self.x += other.x
-        self.y += other.y
-        return self
-
-    def __isub__(self, other):
-        self.x -= other.x
-        self.y -= other.y
-        return self
-
-    def __idiv__(self, other):
-        self.x /= other
-        self.y /= other
-        return self
-
-    def mag(self):
-        return ((self.x ** 2) + (self.y ** 2)) ** 0.5
-
 
 ################################################################################
-
 # MULTIDIMENTIONAL SPACE
 
 # DIMENSIONS: not all will be used at first...
@@ -350,16 +238,8 @@ class MultiD:
         for dim in range(NDIMS):
             self.x[dim] /= other
         return self
-        
-#    def mag(self):
-#        return ((self.x ** 2) + (self.y ** 2)) ** 0.5
-
-#    def MDabs(self):
-#        return MultiD((abs(self.x[i])) for i in range (NDIMS))
-
 
 ################################################################################
-
 # BOID RULE IMPLEMENTATION CLASS
 
 class Boid:
@@ -431,7 +311,6 @@ class Boid:
         return vector
 
 ################################################################################
-
 # ATTRACTOR CLASS
 
 class Attractor:
@@ -442,17 +321,87 @@ class Attractor:
             self.position.x[dim] = random.randint(1, DIMLIMIT)
         self.attraction = attract
 
-    #TODO
-    #def update(self):
+    def rand_update(self):
+        #self.position = MultiD([0]*NDIMS)
+        for dim in range(NDIMS):
+            self.position.x[dim] = random.randint(1, DIMLIMIT)
 
 
 ################################################################################
+# RECEIVING OSC
 
-# OSC STUFF
+# OSC Server. there are three different types of server.
+s = OSC.OSCServer(RECEIVE_ADDRESS) # basic
+##s = OSC.ThreadingOSCServer(receive_address) # threading
+##s = OSC.ForkingOSCServer(receive_address) # forking
+
+# this registers a 'default' handler (for unmatched messages),
+# an /'error' handler, an '/info' handler.
+# And, if the client supports it, a '/subscribe' & '/unsubscribe' handler
+s.addDefaultHandlers()
+
+# define a message-handler function for the server to call.
+def attractor_handler(addr, tags, stuff, source):
+    print "---"
+    print "received new osc msg from %s" % OSC.getUrlStr(source)
+    print "with addr : %s" % addr
+    print "typetags %s" % tags
+    global attractors
+    attractor = random.choice(attractors) #modify a random attractor
+    for item in stuff:
+      print "data %f" % item
+    #Freq dimension value
+    attractor.position.x[0] = int(min(max(stuff[0]-float(MINFREQ),0), MAXFREQ)/float(FREQSCALER))
+    print "freq dim val: %d" % (attractor.position.x[0])
+    #Amp dimension value
+    attractor.position.x[1] = int(min(max(stuff[1],0),MAXAMP)/float(AMPSCALER))
+    print "amp dim val: %d" % (attractor.position.x[1])
+    #Dur dimension value
+    attractor.position.x[2] = int(min(max(stuff[2]-float(MINDUR),0),MAXDUR)/float(DURSCALER))
+    print "dur dim val: %d" % (attractor.position.x[2])
+    print "---"
+s.addMsgHandler("/attr", attractor_handler) # adding our function
+
+# FOR DEBUGGING TODO: remove
+def note_handler(addr, tags, stuff, source):
+    print "---"
+    print "received new osc msg from %s" % OSC.getUrlStr(source)
+    print "with addr : %s" % addr
+    print "typetags %s" % tags
+    for item in stuff:
+        print "data %f" % item
+    print "---"
+s.addMsgHandler("/swarmNote", note_handler) # adding our function
 
 
+def startOSC():
+  # Start OSCServer
+  print "\nStarting OSCServer.\n"
+  global st
+  st = threading.Thread( target = s.serve_forever )
+  st.start()
 
+def quit_handler():
+  # close OSC server
+  print "Closing OSCServer."
+  s.close()
+  print "Waiting for Server-thread to finish."
+  st.join() ##!!!
+  print "Done."
+  graph.quit()
 
+################################################################################
+# SENDING OSC
+
+client = OSC.OSCClient()
+client.connect( SEND_ADDRESS ) # note that the argument is a tupple and not two arguments
+#client.connect( RECEIVE_ADDRESS ) # debugging
+
+def sendMsg(addr,val):
+    msg = OSC.OSCMessage() #  we reuse the same variable msg used above overwriting it
+    msg.setAddress(addr)   # something like "/note"
+    msg.append(val)        # the corresponding value
+    client.send(msg)       # now we dont need to tell the client the address anymore
 
 ################################################################################
 
