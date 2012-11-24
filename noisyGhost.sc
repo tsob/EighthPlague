@@ -51,11 +51,11 @@ a = OSCdef(\incomingNotePrint,
       {|msg, time, addr, recvPort|
       time.postln;   // time
       msg[0].postln; // /swarmNote
-      msg[1].postln; // freq (Hz)
+      msg[1].postln; // freq (carrier)
       msg[2].postln; // amp (between 0 and 1)
       msg[3].postln; // dur (ms)
-    //msg[4].postln; // not used yet
-    //msg[5].postln; // not used yet
+    //msg[4].postln; // freq (fm synth mod)
+    //msg[5].postln; // pan (-1 and 1)
     
     
 //      z.set(
@@ -66,7 +66,7 @@ a = OSCdef(\incomingNotePrint,
 //      );
       
       Pbind(
-        \instrument,  \envio,
+        \instrument,  \simpFM,
         \freq,        Pseq([msg[1].midicps.round],1),
         \amp,         msg[2],
         \dur,         msg[3]/50,
@@ -94,7 +94,7 @@ SwingOSC.quitAll
 //---------------------------------------------------------
 ( 
 var lasttime, started=false; 
-var maxlength=1.0;
+var maxlength=50.0;
 ~notelist = (
   \dur: List(),
   \freq: List(),
@@ -124,7 +124,13 @@ a = OSCdef(\newNoteMsg,
         	
         	m = NetAddr("127.0.0.1", 9000); // python
         	//set attractor position
-          m.sendMsg("/attr",msg[4].cpsmidi,msg[3],(time - lasttime).min(maxlength)*1000);
+          m.sendMsg("/attr",
+                msg[4].cpsmidi,
+                msg[3],
+                (time - lasttime).min(maxlength)*10000,
+                msg[4].cpsmidi*[0.5,1.0,1.2,1.4,1.5,1.6,1.8,2.0].choose, // mod freq
+                (2.0.rand-1.0) //random panning
+          );
 	
       	},{started = true;}); 
 	

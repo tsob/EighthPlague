@@ -33,7 +33,7 @@ OFFSET_START = 20       # FROM WALL IN PIXELS
 FRAMES_PER_SEC = 40     # SCREEN UPDATE RATE
 UPDATE_TIME = 500 / FRAMES_PER_SEC
 WINDOWED = True         # MOVABLE PROGRAM
-NDIMS = 5               # MULTIDIMENSIONAL SWARM SPACE
+NDIMS = 6               # MULTIDIMENSIONAL SWARM SPACE
 
 # FOR OSC
 RECEIVE_ADDRESS = ('127.0.0.1', 9000) # tupple with ip, port.
@@ -43,10 +43,10 @@ SEND_ADDRESS = ('127.0.0.1', 57120) # SuperCollider on local machine.
 MAXFREQ = 90 #MIDI FREQ
 MINFREQ = 20
 MAXAMP = 0.9
-MAXDUR = 100
-MINDUR = 10
-MAXIOI = 100
-MINIOI = 10
+MAXDUR = 180
+MINDUR = 1
+MAXIOI = 200
+MINIOI = 1
 FREQSCALER = float(MAXFREQ - MINFREQ) / float(DIMLIMIT)
 AMPSCALER = float(MAXAMP) / float(DIMLIMIT)
 DURSCALER = float(MAXDUR - MINDUR) / float(DIMLIMIT)
@@ -95,7 +95,7 @@ def update():
     makesound()
     global sim_time #necessary to prevent UnboundLocalError
     sim_time += 1 # iterate discreet time variable
-    if not (sim_time % 50): print "%d\n" % (sim_time) #keep track of time
+    #if not (sim_time % 50): print "%d\n" % (sim_time) #keep track of time
     #if not (sim_time % 500): #randomly move attractors every once in a while
     #    for attractor in attractors:
     #        attractor.rand_update()
@@ -134,27 +134,32 @@ def makesound():
     #check to see if it's time to output a note
     if (note_time < sim_time):
         freq = 0
+        modfreq = 0
         amp = 0
         dur = 0
         ioi = 0
+        pan = 0
         # get dimension centroids
         for boid in boids:
-            freq += boid.position.x[0]
-            amp  += boid.position.x[1]
-            dur  += boid.position.x[2]
-#            print "ioi component: %d\n" % boid.position.x[3]
-            ioi  += boid.position.x[3]
+            freq +=    boid.position.x[0]
+            amp  +=    boid.position.x[1]
+            dur  +=    boid.position.x[2]
+            ioi  +=    boid.position.x[3]
+            modfreq += boid.position.x[4]
+            pan +=     boid.position.x[5]
         freq = (freq / len(boids)) * FREQSCALER + MINFREQ
-        amp = (amp / len(boids)) * AMPSCALER              #0 IS MIN AMP
+        modfreq = (modfreq / len(boids)) * FREQSCALER + MINFREQ
+        amp = (amp / len(boids)) * AMPSCALER
         dur = (dur / len(boids)) * DURSCALER + MINDUR
         ioi = (ioi / len(boids)) * IOISCALER + MINIOI
+        pan = (pan / len(boids)) * 2.0 - 1.0
         # send them via osc as a note event
-        sendMsg('/swarmNote',[freq,amp,dur]) # send OSC to SuperCollider
+        sendMsg('/swarmNote',[freq,amp,dur,modfreq,pan]) # send OSC to SuperCollider
         # assign next note time
         note_time = sim_time + ioi
-        print "\nCurrent time: %d" % (sim_time)
-        print "Freq=%f, amp=%f, dur=%f, IOI=%f" % (freq, amp, dur, ioi)
-        print "Next note time: %d\n" % (note_time)
+        #print "\nCurrent time: %d" % (sim_time)
+        #print "Freq=%f, amp=%f, dur=%f, IOI=%f" % (freq, amp, dur, ioi)
+        #print "Next note time: %d\n" % (note_time)
     
 
 def simulate_wall(boid):
@@ -189,17 +194,16 @@ def build_attractors():
 # Event Parameters:
 #   Frequency
 #   Amplitude
-#   Chord Number
-#   Sequence Number
-#   Mode
-#   Tonic
-#   PANNING TODO TODO
+#   Panning
+#   ...Chord Number
+#   ...Sequence Number
+#   ...Mode
+#   ...Tonic
 # Timing functions:
 #   Duration
-#   Inter-Onset-Interval (can be different!)
+#   Inter-Onset-Interval
 
-# Note: we'll implement dimensional decoupling!! Makes more sense musically.
-
+# Note: we implement dimensional decoupling. Makes more sense musically.
 
 class MultiD:
 
@@ -356,9 +360,16 @@ def attractor_handler(addr, tags, stuff, source):
     #Amp dimension value
     attractor.position.x[1] = int(min(max(stuff[1],0),MAXAMP)/float(AMPSCALER))
     print "amp dim val: %d" % (attractor.position.x[1])
-    #Dur dimension value
-    attractor.position.x[2] = int(min(max(stuff[2]-float(MINDUR),0),MAXDUR)/float(DURSCALER))
+    #Dur and ioi dimension value
+    attractor.position.x[2] = int(min(max(stuff[2]*10-float(MINDUR),0),MAXDUR)/float(DURSCALER))
+    attractor.position.x[3] = int(min(max(stuff[2]*10-float(MINIOI),0),MAXIOI)/float(IOISCALER))
     print "dur dim val: %d" % (attractor.position.x[2])
+    #ModFreq dimension value
+    attractor.position.x[4] = int(min(max(stuff[3]-float(MINFREQ),0),MAXFREQ)/float(FREQSCALER))
+    print "Mod freq dim val: %d" % (attractor.position.x[4])
+    #Panning dimension value
+    attractor.position.x[5] = int((stuff[4]+1.0)*DIMLIMIT/2.0)
+    print "pan dim val: %d" % (attractor.position.x[5])
     print "---"
 s.addMsgHandler("/attr", attractor_handler) # adding our function
 
