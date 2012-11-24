@@ -1,5 +1,5 @@
-NoisyGhost
-==========
+EighthPlague
+============
 
 An environment for human/computer improvisation.
 
