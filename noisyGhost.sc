@@ -41,38 +41,45 @@ SynthDef(\pitchandonsets,
 // 2. Start to receive notes from python swarm
 //------------------------------------------------------
 (
-//z = Synth(\default,[freq: 440, amp: 0]);
-
+~minFreq = 10;  // in midi notes
+~maxFreq = 120; // in midi notes
+~minAmp = 0;
+~maxAmp = 0.5;
+~minDur = 0.1;
+~maxDur = 3.0;
+~minPan = -1.0;
+~maxPan = 1.0;
+~rangeFreq = ~maxFreq - ~minFreq;
+~rangeAmp = ~maxAmp - ~minAmp;
+~rangeDur = ~maxDur - ~minDur;
+~rangePan = ~maxPan - ~minPan;
 n = NetAddr("127.0.0.1", 57120); // local machine
-
 OSCdef.newMatching(\incoming, {|msg, time, addr, recvPort| \matching.postln}, '/swarmNote', n); // path matching
-
 a = OSCdef(\incomingNotePrint,
       {|msg, time, addr, recvPort|
-      time.postln;   // time
-      msg[0].postln; // /swarmNote
-      msg[1].postln; // freq (carrier)
-      msg[2].postln; // amp (between 0 and 1)
-      msg[3].postln; // dur (ms)
-    //msg[4].postln; // freq (fm synth mod)
-    //msg[5].postln; // pan (-1 and 1)
-    
-    
-//      z.set(
-//        \freq, msg[1].midicps.round,
-//        \amp, msg[2],
-//        \dur, msg[3]/1000,
-//        \pan, [-1,-0.5,0,0.5,1].choose //random panning
-//      );
-      
+      time.postln;   // post time
+      msg.do({arg i; i.postln}); // post each part of the msg
+      ~freq = ((~rangeFreq * msg[1]) + ~minFreq).round;
+      ~amp = ((~rangeAmp * msg[2]) + ~minAmp);
+      ~dur = ((~rangeDur * msg[3]) + ~minDur);
+      ~pan = ((~rangePan * msg[4]) + ~minPan);
       Pbind(
         \instrument,  \simpFM,
-        \freq,        Pseq([msg[1].midicps.round],1),
-        \amp,         msg[2],
-        \dur,         msg[3]/50,
-        \pan,         [-1,-0.5,0,0.5,1].choose //random panning
+        \freq,        Pseq([~freq.midicps],1),
+        \amp,         ~amp,
+        \dur,         ~dur,
+        \pan,         ~pan
       ).play;
       
+//      Pbind(
+//        \instrument,  \natalQuinto,
+//        //\freq,        Pseq([msg[1].midicps.round],1),
+//        #[\bufnum, \sampdur],
+//            Prand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 1),
+//        \amp,         msg[2],
+//        //\dur,         msg[3]/50,
+//        \pan,         [-1,-0.5,0,0.5,1].choose //random panning
+//      ).play;
       
       },
       '/swarmNote',nil);

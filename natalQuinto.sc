@@ -5,16 +5,14 @@
 // Available under CC Attribution license
 // http://creativecommons.org/licenses/by/3.0/
 
-//*******
 //NOTE: Change ~paths to point to the right directory on your machine!
 //      Requires absolute path.
-//*******
 
 //instantiate buffers, read in samples, and create synthdef
 (
 ~paths = "/home/tim/EighthPlague/1302__ramjac__natal-quinto/*.aif".pathMatch;
 b = Array.newClear(~paths.size); //init buffers for samples
-for(0, f.size-1,
+for(0, ~paths.size-1,
    {arg i; b[i] = Buffer.read(s,PathName(~paths[i]).asAbsolutePath);}
 );
 
@@ -35,9 +33,9 @@ SynthDef(\natalQuinto, { arg out = 0, bufnum, sampdur, amp=1, pan=0;
 Pbind(
   \instrument, \natalQuinto,
   #[\bufnum, \sampdur],
-      Prand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 100),
-  \dur, Prand([0.1,0.1,0.2,0.2,0.2,0.166667,0.333333,0.5,0.5,1], inf),
-  \pan, Prand([-1,0,1], inf),
+      Pxrand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 50),
+  \dur, Prand([0.075,0.1,0.1,0.1,0.2,0.2,0.2,0.166667,0.333333,0.5,1], inf),
+  \pan, Prand([-1,-0.5,0,0.5,1], inf),
   \amp, Prand([0.7,1.2], inf)
 ).play;
 )
