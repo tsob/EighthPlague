@@ -63,6 +63,8 @@ a = OSCdef(\incomingNotePrint,
       ~amp = ((~rangeAmp * msg[2]) + ~minAmp);
       ~dur = ((~rangeDur * msg[3]) + ~minDur);
       ~pan = ((~rangePan * msg[4]) + ~minPan);
+
+      //FM
       Pbind(
         \instrument,  \simpFM,
         \freq,        Pseq([~freq.midicps],1),
@@ -70,16 +72,17 @@ a = OSCdef(\incomingNotePrint,
         \dur,         ~dur,
         \pan,         ~pan
       ).play;
-      
-//      Pbind(
-//        \instrument,  \natalQuinto,
-//        //\freq,        Pseq([msg[1].midicps.round],1),
-//        #[\bufnum, \sampdur],
-//            Prand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 1),
-//        \amp,         msg[2],
-//        //\dur,         msg[3]/50,
-//        \pan,         [-1,-0.5,0,0.5,1].choose //random panning
-//      ).play;
+
+      //drums
+      Pbind(
+        \instrument,  \natalQuinto,
+        //\freq,       Pseq([msg[1].midicps.round],1),
+        #[\bufnum, \sampdur],
+                      Prand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 3),
+        \amp,         ~amp*4,
+        \dur,         Prand([0.075,0.1,0.1,0.1,0.2,0.2,0.2,0.166667,0.333333,0.5,1], inf),
+        \pan,         ([-1,-0.5,0,0.5,1] * ~pan).min(1).max(-1).choose //random panning
+      ).play;
       
       },
       '/swarmNote',nil);
@@ -128,15 +131,16 @@ a = OSCdef(\newNoteMsg,
           	    ~notelist[\freq].pop;
           	    ~notelist[\amp].pop; }
         	); 
-        	
+
         	m = NetAddr("127.0.0.1", 9000); // python
         	//set attractor position
           m.sendMsg("/attr",
-                msg[4].cpsmidi,
-                msg[3],
-                (time - lasttime).min(maxlength)*10000,
-                msg[4].cpsmidi*[0.5,1.0,1.2,1.4,1.5,1.6,1.8,2.0].choose, // mod freq
-                (2.0.rand-1.0) //random panning
+                ((msg[4].cpsmidi - ~minFreq) / ~rangeFreq).max(0).min(1),
+                ((msg[3] - ~minAmp) / ~rangeAmp).max(0).min(1),
+                (time - lasttime).min(~maxDur)/~maxDur,
+                ((msg[4].cpsmidi*[0.5,1.0,1.2,1.4,1.5,1.6,1.8,2.0].choose - ~minFreq) / ~rangeFreq).max(0).min(1), // mod freq
+                1.0.rand, //random panning
+                (time - lasttime).min(~maxDur)/~maxDur, //ioi
           );
 	
       	},{started = true;}); 
