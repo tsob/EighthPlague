@@ -41,6 +41,7 @@ SynthDef(\pitchandonsets,
 // 2. Start to receive notes from python swarm
 //------------------------------------------------------
 (
+~scale = Scale.minor;
 ~minFreq = 10;  // in midi notes
 ~maxFreq = 120; // in midi notes
 ~minAmp = 0;
@@ -63,24 +64,36 @@ a = OSCdef(\incomingNotePrint,
       ~amp = ((~rangeAmp * msg[2]) + ~minAmp);
       ~dur = ((~rangeDur * msg[3]) + ~minDur);
       ~pan = ((~rangePan * msg[4]) + ~minPan);
+      ~degree = (~freq % 12) + (7 * ((~freq / 12).round - 6) );
 
       //FM
+//      Pbind(
+//        \instrument,  \simpFM,
+//        \freq,        Pseq([~freq.midicps],1),
+//        \amp,         ~amp,
+//        \dur,         ~dur,
+//        \pan,         ~pan
+//      ).play;
+
       Pbind(
-        \instrument,  \simpFM,
-        \freq,        Pseq([~freq.midicps],1),
+        \instrument,  \envio,
+        //\freq,        Pseq([~freq.midicps],1),
+        \degree,      Pseq([~degree],1),
+        \scale,       Pfunc({ ~scale }, inf),
         \amp,         ~amp,
         \dur,         ~dur,
         \pan,         ~pan
       ).play;
+
 
       //drums
       Pbind(
         \instrument,  \natalQuinto,
         //\freq,       Pseq([msg[1].midicps.round],1),
         #[\bufnum, \sampdur],
-                      Prand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 3),
+                      Prand(Array.fill(~paths.size, { arg i; [b[i],b[i].duration] } ), 1),
         \amp,         ~amp*4,
-        \dur,         Prand([0.075,0.1,0.1,0.1,0.2,0.2,0.2,0.166667,0.333333,0.5,1], inf),
+        \dur,         Prand([0.1,0.2,0.5,1], inf),
         \pan,         ([-1,-0.5,0,0.5,1] * ~pan).min(1).max(-1).choose //random panning
       ).play;
       
