@@ -4,6 +4,7 @@
 // @note Adapted from Nick Collins' Machine Listening Chapter in the SuperCollider book.
 // @note See also «envio» synth by vividsnow, http://sccode.org/1-4Qw
 
+
 //------------------------------------------------------
 // 1. Set up machine listening on server ---------------
 (
@@ -110,12 +111,75 @@ OSCFunc.trace(true); // Turn posting on
 OSCFunc.trace(false); // Turn posting off
 SwingOSC.quitAll
 
+
+
+//---------------------------------------------------------
+// register to receive messages from jar
+//---------------------------------------------------------
+// port 7000
+// /piezo float
+// /accel float float float
+// jerk
+( 
+~jarlist = (
+  \piezo: List(),
+  \accx: List(),
+  \accy: List(),
+  \accz: List(),
+  \jerk: List()
+);
+~numvals = 200;     //will hold the last 2 seconds at 10ms/msg 
+var started=false; 
+~piezo = OSCdef(\newPiezoMsg,
+      {|msg, time, addr, recvPort|		
+	      if(started,{	
+          ~jarlist[\piezo].addFirst(msg[1]);
+        	//remove oldest val if over size ~numvals
+        	if(~jarlist[\piezo].size>~numvals,
+        	    { ~jarlist[\piezo].pop; }
+        	); 
+	
+      	},{started = true;}); 
+      },
+      '/piezo', nil);
+~acc = OSCdef(\newAccMsg,
+      {|msg, time, addr, recvPort|		
+	      if(started,{	
+          ~jarlist[\accx].addFirst(msg[1]);
+          ~jarlist[\accy].addFirst(msg[2]);
+          ~jarlist[\accz].addFirst(msg[3]);
+        	//remove oldest val if over size ~numvals
+        	if(~jarlist[\accx].size>~numvals,
+        	    { ~jarlist[\accx].pop;
+          	    ~jarlist[\accy].pop;
+          	    ~jarlist[\accz].pop; }
+        	); 
+      	},{started = true;}); 
+      },
+      '/accel', nil);
+~jerk = OSCdef(\newJerkMsg,
+      {|msg, time, addr, recvPort|		
+      	m = NetAddr("127.0.0.1", 9000); // python
+      	//set attractor position
+        m.sendMsg("/attr",
+              //freq,
+              (~jarlist[\piezo]).max(0).min(1), //amp
+              (~jarlist[\accx]).max(0).min(1), //dur
+              (~jarlist[\accx]).max(0).min(1), //mod freq
+              (~jarlist[\accy]).max(0).min(1), //dur
+              (~jarlist[\accz]).max(0).min(1), //ioi
+        );
+      },
+      'jerk', nil);
+)
 //---------------------------------------------------------
 // register to receive note message from scsynth server
 //---------------------------------------------------------
 // Send tracked notes to python script to modify attractors
 //---------------------------------------------------------
 ( 
+n = NetAddr("127.0.0.1", 57120); // local machine
+OSCdef.newMatching(\incoming, {|msg, time, addr, recvPort| \matching.postln}, '/swarmNote', n); // path matching
 var lasttime, started=false; 
 var maxlength=50.0;
 ~notelist = (
@@ -165,6 +229,7 @@ a = OSCdef(\newNoteMsg,
 
 x = Synth(\pitchandonsets); 
 )
+
 
 
 //------------------------------------------------------
